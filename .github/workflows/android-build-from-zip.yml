@@ -28,10 +28,13 @@ jobs:
           s = p.read_text()
           old = '''                if (audioQualityId.isNotBlank()) {
                     if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
-          new = '''                // Avoid YouTube HLS audio 233/234 only when section cutting.
+          new = '''                // Avoid YouTube HLS audio 233/234 when section cutting.
                 if (downloadItem.downloadSections.isNotBlank() &&
                     downloadItem.url.isYoutubeURL() &&
-                    (audioQualityId == "233/ba/b" || audioQualityId == "234/ba/b")) {
+                    (downloadItem.format.format_id == "233" ||
+                     downloadItem.format.format_id == "234" ||
+                     audioQualityId.startsWith("233/") ||
+                     audioQualityId.startsWith("234/"))) {
                     audioQualityId = "140/ba[ext=m4a]/ba/b"
                 }
 
@@ -83,6 +86,20 @@ jobs:
           run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
           s = s.replace(old_build, f'def versionBuild = {run_number}', 1)
           p.write_text(s)
+          PY
+
+      - name: Distinguish patched app from official YTDLnis
+        working-directory: ytdlnis
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          old = 'android:label="YTDLnis"'
+          new = 'android:label="YTDLnis Patched"'
+          if old not in s:
+              raise SystemExit("App label target not found")
+          p.write_text(s.replace(old, new, 1))
           PY
 
       - uses: actions/setup-java@v4
