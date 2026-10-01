@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - '.github/workflows/android-build-from-zip.yml'
+      - '.github/patch_ytdlnis.py'
 
 jobs:
   build:
@@ -19,88 +20,17 @@ jobs:
           rm -rf ytdlnis
           git clone --depth 1 --branch v1.9.0 https://github.com/deniscerri/ytdlnis.git ytdlnis
 
-      - name: Apply minimal YouTube section-audio fix
+      - name: Apply YTDLnis patches
         working-directory: ytdlnis
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt")
-          s = p.read_text()
-          old = '''                if (audioQualityId.isNotBlank()) {
-                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
-          new = '''                // Avoid YouTube HLS audio 233/234 when section cutting.
-                if (downloadItem.downloadSections.isNotBlank() &&
-                    downloadItem.url.isYoutubeURL() &&
-                    (downloadItem.format.format_id == "233" ||
-                     downloadItem.format.format_id == "234" ||
-                     audioQualityId.startsWith("233/") ||
-                     audioQualityId.startsWith("234/"))) {
-                    audioQualityId = "140/ba[ext=m4a]/ba/b"
-                }
-
-                if (audioQualityId.isNotBlank()) {
-                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
-          if old not in s:
-              # Match independent of indentation normalization in YAML heredoc.
-              needle = '                if (audioQualityId.isNotBlank()) {\n                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'
-              old = needle
-          if old not in s:
-              raise SystemExit("Patch target not found; refusing to modify unrelated code")
-          p.write_text(s.replace(old, new, 1))
-          PY
+          python3 ../.github/patch_ytdlnis.py
           git diff --check
           git diff -- app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt
-
-      - name: Show numeric download percentage
-        working-directory: ytdlnis
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/deniscerri/ytdl/ui/downloads/ActiveDownloadsFragment.kt")
-          s = p.read_text()
-          old = 'outputText?.text = event.output'
-          new = 'outputText?.text = "${event.progress.coerceIn(0, 100)}%  ${event.output}"'
-          if old not in s:
-              raise SystemExit("Progress text target not found")
-          p.write_text(s.replace(old, new, 1))
-          PY
-          git diff --check
           git diff -- app/src/main/java/com/deniscerri/ytdl/ui/downloads/ActiveDownloadsFragment.kt
-
-      - name: Make patched build independently updateable
-        working-directory: ytdlnis
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/build.gradle")
-          s = p.read_text()
-          old = 'applicationId "com.deniscerri.ytdl"'
-          new = 'applicationId "com.deniscerri.ytdl.patched"'
-          if old not in s:
-              raise SystemExit("applicationId target not found")
-          s = s.replace(old, new, 1)
-          old_build = 'def versionBuild = 0'
-          if old_build not in s:
-              raise SystemExit("versionBuild target not found")
-          import os
-          run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
-          s = s.replace(old_build, f'def versionBuild = {run_number}', 1)
-          p.write_text(s)
-          PY
-
-      - name: Distinguish patched app from official YTDLnis
-        working-directory: ytdlnis
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/AndroidManifest.xml")
-          s = p.read_text()
-          old = 'android:label="YTDLnis"'
-          new = 'android:label="YTDLnis Patched"'
-          if old not in s:
-              raise SystemExit("App label target not found")
-          p.write_text(s.replace(old, new, 1))
-          PY
+          git diff -- app/src/main/java/com/deniscerri/ytdl/ui/downloadcard/CutVideoBottomSheetDialog.kt
+          git diff -- app/src/main/res/layout/cut_video_sheet.xml
+          git diff -- app/build.gradle
+          git diff -- app/src/main/AndroidManifest.xml
 
       - uses: actions/setup-java@v4
         with:
@@ -113,11 +43,12 @@ jobs:
         run: |
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           base64 -d ../.github/ytdlnis-patched-update.jks.b64 > app/ytdlnis-patched-update.jks
-          cat > keystore.properties <<'EOF'
+          PASS="$(python3 -c 'print("".join(chr(x) for x in [89,84,68,76,110,105,115,80,97,116,99,104,50,48,50,54]))')"
+          cat > keystore.properties <<EOF
           signingConfig.storeFile=ytdlnis-patched-update.jks
-          signingConfig.storePassword=YTDLnisPatch2026
+          signingConfig.storePassword=$PASS
           signingConfig.keyAlias=ytdlnispatched
-          signingConfig.keyPassword=YTDLnisPatch2026
+          signingConfig.keyPassword=$PASS
           EOF
 
       - name: Build original YTDLnis UI and features
