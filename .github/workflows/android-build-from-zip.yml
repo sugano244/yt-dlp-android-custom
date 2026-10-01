@@ -54,6 +54,12 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Prepare Android local properties
+        working-directory: ytdlnis
+        run: |
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          : > keystore.properties
+
       - name: Build original YTDLnis UI and features
         working-directory: ytdlnis
         run: |
