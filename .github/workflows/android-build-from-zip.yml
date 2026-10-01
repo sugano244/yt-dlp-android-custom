@@ -48,6 +48,72 @@ jobs:
           git diff --check
           git diff -- app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt
 
+      - name: Show numeric download percentage
+        working-directory: ytdlnis
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/deniscerri/ytdl/ui/downloads/ActiveDownloadsFragment.kt")
+          s = p.read_text()
+
+          old_update = '''                            progressBar?.setProgressCompat(event.progress, true)
+                            outputText?.text = event.output'''
+          new_update = '''                            val currentItem = activeDownloads.currentList
+                                .filterNotNull()
+                                .firstOrNull { it.id == event.downloadItemID }
+                            val displayProgress = getDisplayProgress(currentItem, event.progress, event.output)
+                            progressBar?.setProgressCompat(displayProgress, true)
+                            outputText?.text = "$displayProgress%  \${event.output}"'''
+          if old_update not in s:
+              raise SystemExit("Progress UI update target not found")
+          s = s.replace(old_update, new_update, 1)
+
+          insert_before = '''    override fun onCancelClick(itemID: Long) {'''
+          helpers = r'''    private fun parseTimeSeconds(value: String): Double? {
+              val parts = value.trim().split(":")
+              return try {
+                  when (parts.size) {
+                      3 -> parts[0].toDouble() * 3600 + parts[1].toDouble() * 60 + parts[2].toDouble()
+                      2 -> parts[0].toDouble() * 60 + parts[1].toDouble()
+                      1 -> parts[0].toDouble()
+                      else -> null
+                  }
+              } catch (_: Exception) {
+                  null
+              }
+          }
+
+          private fun getSectionDurationSeconds(spec: String): Double? {
+              if (spec.isBlank()) return null
+              val section = spec.trim().removePrefix("*").split(",").firstOrNull()?.trim() ?: return null
+              val separator = section.indexOf('-')
+              if (separator <= 0 || separator >= section.length - 1) return null
+              val start = parseTimeSeconds(section.substring(0, separator)) ?: return null
+              val end = parseTimeSeconds(section.substring(separator + 1)) ?: return null
+              return (end - start).takeIf { it > 0 }
+          }
+
+          private fun getDisplayProgress(item: DownloadItem?, fallback: Int, output: String): Int {
+              if (item != null && item.downloadSections.isNotBlank()) {
+                  val timeMatch = Regex("""time=(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)""").find(output)
+                  val elapsed = timeMatch?.groupValues?.getOrNull(1)?.let { parseTimeSeconds(it) }
+                  val total = getSectionDurationSeconds(item.downloadSections)
+                  if (elapsed != null && total != null && total > 0) {
+                      return ((elapsed / total) * 100.0).toInt().coerceIn(0, 99)
+                  }
+              }
+              return fallback.coerceIn(0, 100)
+          }
+
+'''
+          if insert_before not in s:
+              raise SystemExit("Helper insertion target not found")
+          s = s.replace(insert_before, helpers + insert_before, 1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- app/src/main/java/com/deniscerri/ytdl/ui/downloads/ActiveDownloadsFragment.kt
+
       - name: Make patched build independently updateable
         working-directory: ytdlnis
         run: |
