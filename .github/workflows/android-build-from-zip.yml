@@ -1,0 +1,45 @@
+name: Build custom yt-dlp Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'yt-dlp-android-custom-fixed-project.zip'
+      - '.github/workflows/android-build-from-zip.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract project
+        run: |
+          rm -rf buildsrc
+          mkdir buildsrc
+          unzip -q yt-dlp-android-custom-fixed-project.zip -d buildsrc
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        working-directory: buildsrc
+        run: gradle assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yt-dlp-android-custom-fixed-apk
+          path: buildsrc/app/build/outputs/apk/debug/app-debug.apk
