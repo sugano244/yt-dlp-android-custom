@@ -1,11 +1,10 @@
-name: Build custom yt-dlp Android APK
+name: Build patched YTDLnis 1.9.0 APK
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'yt-dlp-android-custom-fixed-project.zip'
       - '.github/workflows/android-build-from-zip.yml'
 
 jobs:
@@ -15,31 +14,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract project
+      - name: Checkout original YTDLnis 1.9.0
         run: |
-          rm -rf buildsrc
-          mkdir buildsrc
-          unzip -q yt-dlp-android-custom-fixed-project.zip -d buildsrc
+          rm -rf ytdlnis
+          git clone --depth 1 --branch v1.9.0 https://github.com/deniscerri/ytdlnis.git ytdlnis
+
+      - name: Apply minimal YouTube section-audio fix
+        working-directory: ytdlnis
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt")
+          s = p.read_text()
+          old = '''                if (audioQualityId.isNotBlank()) {
+                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
+          new = '''                // YouTube formats 233/234 are HLS audio streams. When --download-sections
+                // is used, ffmpeg may fail while opening the first HLS segment. Only for this
+                // specific case, prefer the regular HTTPS M4A stream and keep all other behavior.
+                if (downloadItem.downloadSections.isNotBlank() &&
+                    downloadItem.url.isYoutubeURL() &&
+                    (audioQualityId == "233/ba/b" || audioQualityId == "234/ba/b")) {
+                    audioQualityId = "140/ba[ext=m4a]/ba/b"
+                }
+
+                if (audioQualityId.isNotBlank()) {
+                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
+          if old not in s:
+              raise SystemExit("Patch target not found; refusing to modify unrelated code")
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt
 
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: corretto
           java-version: '17'
+          cache: gradle
 
-      - name: Install Android SDK
+      - name: Build original YTDLnis UI and features
+        working-directory: ytdlnis
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          chmod +x gradlew
+          ./gradlew assembleGithubDebug --stacktrace
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Build APK
-        working-directory: buildsrc
-        run: gradle assembleDebug --stacktrace
+      - name: Locate APK
+        run: |
+          find ytdlnis/app/build/outputs/apk -type f -name '*.apk' -print
 
       - uses: actions/upload-artifact@v4
         with:
-          name: yt-dlp-android-custom-fixed-apk
-          path: buildsrc/app/build/outputs/apk/debug/app-debug.apk
+          name: YTDLnis-1.9.0-patched-original
+          path: ytdlnis/app/build/outputs/apk/github/debug/*.apk
+          if-no-files-found: error
