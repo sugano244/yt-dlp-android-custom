@@ -48,11 +48,26 @@ jobs:
           git diff --check
           git diff -- app/src/main/java/com/deniscerri/ytdl/util/extractors/ytdlp/YTDLPUtil.kt
 
-      - name: Keep official package identity for in-place updates
+      - name: Make patched build independently updateable
         working-directory: ytdlnis
         run: |
-          grep -q 'applicationId "com.deniscerri.ytdl"' app/build.gradle
-          echo "Keeping com.deniscerri.ytdl so this build targets the existing app package."
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle")
+          s = p.read_text()
+          old = 'applicationId "com.deniscerri.ytdl"'
+          new = 'applicationId "com.deniscerri.ytdl.patched"'
+          if old not in s:
+              raise SystemExit("applicationId target not found")
+          s = s.replace(old, new, 1)
+          old_build = 'def versionBuild = 0'
+          if old_build not in s:
+              raise SystemExit("versionBuild target not found")
+          import os
+          run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
+          s = s.replace(old_build, f'def versionBuild = {run_number}', 1)
+          p.write_text(s)
+          PY
 
       - uses: actions/setup-java@v4
         with:
@@ -60,11 +75,17 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Prepare Android local properties
+      - name: Prepare Android local properties and stable signing
         working-directory: ytdlnis
         run: |
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-          : > keystore.properties
+          base64 -d ../.github/ytdlnis-patched-update.jks.b64 > app/ytdlnis-patched-update.jks
+          cat > keystore.properties <<'EOF'
+          signingConfig.storeFile=ytdlnis-patched-update.jks
+          signingConfig.storePassword=YTDLnisPatch2026
+          signingConfig.keyAlias=ytdlnispatched
+          signingConfig.keyPassword=YTDLnisPatch2026
+          EOF
 
       - name: Build original YTDLnis UI and features
         working-directory: ytdlnis
