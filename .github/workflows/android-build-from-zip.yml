@@ -63,7 +63,7 @@ jobs:
                                 .firstOrNull { it.id == event.downloadItemID }
                             val displayProgress = getDisplayProgress(currentItem, event.progress, event.output)
                             progressBar?.setProgressCompat(displayProgress, true)
-                            outputText?.text = "$displayProgress%  \${event.output}"'''
+                            outputText?.text = "$displayProgress%  ${event.output}"'''
           if old_update not in s:
               raise SystemExit("Progress UI update target not found")
           s = s.replace(old_update, new_update, 1)
@@ -95,7 +95,7 @@ jobs:
 
           private fun getDisplayProgress(item: DownloadItem?, fallback: Int, output: String): Int {
               if (item != null && item.downloadSections.isNotBlank()) {
-                  val timeMatch = Regex("""time=(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)""").find(output)
+                  val timeMatch = Regex("""time=(\d{2}:\d{2}:\d{2}(?:\.\d+)?)""").find(output)
                   val elapsed = timeMatch?.groupValues?.getOrNull(1)?.let { parseTimeSeconds(it) }
                   val total = getSectionDurationSeconds(item.downloadSections)
                   if (elapsed != null && total != null && total > 0) {
@@ -105,7 +105,7 @@ jobs:
               return fallback.coerceIn(0, 100)
           }
 
-'''
+          '''
           if insert_before not in s:
               raise SystemExit("Helper insertion target not found")
           s = s.replace(insert_before, helpers + insert_before, 1)
