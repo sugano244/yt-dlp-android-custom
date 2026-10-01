@@ -28,9 +28,7 @@ jobs:
           s = p.read_text()
           old = '''                if (audioQualityId.isNotBlank()) {
                     if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
-          new = '''                // YouTube formats 233/234 are HLS audio streams. When --download-sections
-                // is used, ffmpeg may fail while opening the first HLS segment. Only for this
-                // specific case, prefer the regular HTTPS M4A stream and keep all other behavior.
+          new = '''                // Avoid YouTube HLS audio 233/234 only when section cutting.
                 if (downloadItem.downloadSections.isNotBlank() &&
                     downloadItem.url.isYoutubeURL() &&
                     (audioQualityId == "233/ba/b" || audioQualityId == "234/ba/b")) {
@@ -39,6 +37,10 @@ jobs:
 
                 if (audioQualityId.isNotBlank()) {
                     if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'''
+          if old not in s:
+              # Match independent of indentation normalization in YAML heredoc.
+              needle = '                if (audioQualityId.isNotBlank()) {\n                    if (audioQualityId.matches(".*-[0-9]+.*".toRegex())) {'
+              old = needle
           if old not in s:
               raise SystemExit("Patch target not found; refusing to modify unrelated code")
           p.write_text(s.replace(old, new, 1))
