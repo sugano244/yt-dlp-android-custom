@@ -30,6 +30,11 @@ jobs:
           mkdir -p /tmp/ofdmclasses
           javac -encoding UTF-8 -d /tmp/ofdmclasses app/src/main/java/jp/nx809j/sdrlab/VirtualOfdm.java tests/OfdmTest.java
           java -cp /tmp/ofdmclasses jp.nx809j.sdrlab.OfdmTest
+      - name: Validate Mode-3 IQ field analyzer
+        run: |
+          mkdir -p /tmp/iqclasses
+          javac -encoding UTF-8 -d /tmp/iqclasses app/src/main/java/jp/nx809j/sdrlab/IqFieldAnalyzer.java tests/IqFieldTest.java
+          java -cp /tmp/iqclasses jp.nx809j.sdrlab.IqFieldTest
       - name: Build Android APK
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4

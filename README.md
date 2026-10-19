@@ -1,25 +1,33 @@
-# NX809J RF Verify v0.3
+# NX809J IQ Field Lab v0.4
 
-Android app for a **read-only feasibility diagnosis** of APK-only live over-the-air TV reception on REDMAGIC NX809J. Companion to synthetic OFDM SDR Lab.
+Android application to investigate offline ISDB-T signal processing on a REDMAGIC NX809J.
 
-## What the app actually checks
-- Declared Android `android.hardware.tv.tuner` feature, and separate `android.software.live_tv` flag.
-- Availability of Android TV tuner resource service to an ordinary application.
-- Whether `android.permission.ACCESS_TV_TUNER` is granted. On stock Android 16 this is a signature/privileged/vendorPrivileged permission; merely asking cannot make it available to a normal APK.
-- Accessible DVB/ISDB/SDR device nodes and limited VINTF manifest hints.
-- Device model, SoC, Android version, supported MPEG-2/AVC video codecs.
-- Still provides **synthetic** 13-segment-like OFDM FFT/IFFT BER tests for software performance.
+## Supported (implemented)
+- Read-only NX809J RF feature/permission/hardware hints diagnostics (v0.3).
+- A simulated educational 13-segment-like QPSK OFDM loopback (v0.2).
+- Import locally recorded interleaved IQ with **Android system file picker** (no storage permission): CU8, CS16LE, CF32LE.
+- FFT-size 8192 (ISDB-T Mode 3) and guard interval candidate search for 256, 512, 1024, 2048 samples.
+- Calculate cyclic-prefix normalized autocorrelation, fractional CFO estimate and central/outer FFT energy contrast.
+- Deterministic synthetic IQ capture to test algorithms, JVM tests of CP detection and rejection of noise, logs shareable from Android.
+- Reads at most 524288 bytes; no recording, no network requests, no root.
 
-The diagnostic cannot prove that undocumented RF hardware does not exist. Declared support is likewise not proof of actual ISDB-T reception. Even on a device with RF hardware, tuning and decoding protected broadcasts would need the applicable legitimate hardware and access rights.
+**Correct sample rate required**: 8.126984 MS/s. If a capture uses another sample rate, it must be resampled before use. Center it on the ISDB-T channel. An apparent CP peak is *not* sufficient to identify a real ISDB-T signal.
 
-**This APK receives no RF data and cannot show live television.** It makes no network requests, reads no personal identifiers, performs no rooting, and makes no changes to radios.
+## Not supported
+- No live RF or actual TV; no native RF hardware channel; no tuning.
+- No robust transmission-mode detection, fading-channel equalization, TMCC, interleaving, FEC, MPEG-TS, B-CAS, MPEG-2 decoding, or EPG.
+- The offline analyzer is an early field-synchronization experiment, NOT a full-seg receiver.
+
+## NX809J evidence
+- The user-provided nonprivileged Android diagnostic: no advertised TV tuner, ACCESS_TV_TUNER denied, DVB device node absent, no TV HAL in readable top-level VINTF manifests.
+- The [NX809J LineageOS device tree](https://github.com/IronShing/android_device_nubia_NX809J) (branch lineage-23) does not expose an ISDB-T/tuner HAL in selected manifest, vendor_hals.mk and proprietary-files.txt listings.
+- Public [NX809J firmware inventory](https://github.com/code002-2/nubia-nx809j-firmware) lists modem, WLAN, Bluetooth, GPU and DSP firmware but no identified terrestrial broadcast frontend.
+- These do NOT prove that undocumented hardware does not exist.
+
+## Dependencies and compliance
+- Reference implementation: [gr-isdbt](https://github.com/git-artes/gr-isdbt) GNU Radio full-seg receiver (GPL-3.0). We DO NOT ship or copy its code into this project. Porting the complete receiver would require a separate architecture, licensing review and substantial development.
+- Typical ISDB-T Mode 3 nominal sampling ~8.126984 MS/s; FFT 8192.
+- No copied proprietary Qualcomm or Nubia binary blobs.
 
 ## APK
-From [GitHub Actions](https://github.com/sugano244/yt-dlp-android-custom/actions/workflows/build-apk.yml), open the successful run and download `NX809J-SDR-Lab-debug-APK`. Install `app-debug.apk`.
-
-Version 0.3 has a different Android application ID from v0.2, so it can be installed in parallel without debug-signing conflicts.
-
-## References
-- Android Open Source Project tuner framework: https://source.android.com/docs/devices/tv/tuner-framework
-- Android hardware feature XML: https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/data/etc/android.hardware.tv.tuner.xml
-- ACCESS_TV_TUNER permission (Android 16): https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-qpr2-release/core/res/AndroidManifest.xml
+[GitHub Actions builds](https://github.com/sugano244/yt-dlp-android-custom/actions/workflows/build-apk.yml) -> `NX809J-SDR-Lab-debug-APK` -> `app-debug.apk`.
