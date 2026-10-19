@@ -1,33 +1,36 @@
-# NX809J IQ Field Lab v0.4
+# NX809J Virtual Full-Seg Board v0.5
 
-Android application to investigate offline ISDB-T signal processing on a REDMAGIC NX809J.
+**Software-only research emulator of a fictional board** with a virtual RF tuner control-plane, Mode-3 OFDM cyclic-prefix acquisition stage, virtual memory-mapped chip registers, maskable/acknowledgeable IRQs, input-selection and tune state machine.
 
-## Supported (implemented)
-- Read-only NX809J RF feature/permission/hardware hints diagnostics (v0.3).
-- A simulated educational 13-segment-like QPSK OFDM loopback (v0.2).
-- Import locally recorded interleaved IQ with **Android system file picker** (no storage permission): CU8, CS16LE, CF32LE.
-- FFT-size 8192 (ISDB-T Mode 3) and guard interval candidate search for 256, 512, 1024, 2048 samples.
-- Calculate cyclic-prefix normalized autocorrelation, fractional CFO estimate and central/outer FFT energy contrast.
-- Deterministic synthetic IQ capture to test algorithms, JVM tests of CP detection and rejection of noise, logs shareable from Android.
-- Reads at most 524288 bytes; no recording, no network requests, no root.
+This deliberately **does not impersonate any commercial chip** and cannot drive a third-party proprietary kernel driver. The `RF_PRESENT` register is always `0`. No physical antenna, RF amplifiers/mixers, PLL or analog-to-digital circuit can be emulated into existence.
 
-**Correct sample rate required**: 8.126984 MS/s. If a capture uses another sample rate, it must be resampled before use. Center it on the ISDB-T channel. An apparent CP peak is *not* sufficient to identify a real ISDB-T signal.
+## Implemented (verified in CI)
+- Virtual register addresses and 32-bit read/write semantics (`CHIP_ID`, control, status, channel/frequency, 8.126984 MS/s configuration, FFT size 8192, CP estimate, fractional CFO, spectral contrast, input source, IRQ/status).
+- Power / reset / tune state machine and UHF channels 13–52. The specified frequency is informative only — the virtual tuner cannot retune the Snapdragon modem.
+- Input source: NONE, SYNTHETIC (locally generated), RECORDED (Android document picker, interleaved CU8/CS16LE/CF32LE). Max 524,288 bytes.
+- Real DSP execution of offline FFT + candidate cyclic-prefix synchronization from the v0.4 analyzer. Acquiring a CP candidate **never asserts** TMCC lock, valid transport stream, or real RF lock.
+- IRQs: TUNE_DONE, CP_DETECTED, ERROR, IRQ mask and write-one-to-clear.
+- Device diagnostics: Android tuner features, TV tuner permission, selected readable /dev and VINTF paths, video codec list.
+- JVM CI tests for missing IQ, synthetic lock, noise false-positive guard, interrupts, read-only registers, and reset.
+- App UI with virtual board actions, offline IQ import and shareable logs.
 
-## Not supported
-- No live RF or actual TV; no native RF hardware channel; no tuning.
-- No robust transmission-mode detection, fading-channel equalization, TMCC, interleaving, FEC, MPEG-TS, B-CAS, MPEG-2 decoding, or EPG.
-- The offline analyzer is an early field-synchronization experiment, NOT a full-seg receiver.
+## NOT implemented or possible without hardware
+- No direct over-the-air broadcast reception on standard NX809J: no discoverable compatible RF input.
+- No emulated physical antenna/RF energy, mixer, ADC, or hardware PLL. The virtual component supplies only a *digital simulation*.
+- No actual ISDB-T full-seg demodulation yet: no TMCC parsing, frequency/time interleaver reversal, channel estimation, FEC, MPEG-TS or B-CAS. A CP peak does NOT prove an ISDB-T signal.
+- No audio/video playback. If a recorded real IQ file is loaded, the emulator inspects its CP and bandwidth signature, not content.
 
-## NX809J evidence
-- The user-provided nonprivileged Android diagnostic: no advertised TV tuner, ACCESS_TV_TUNER denied, DVB device node absent, no TV HAL in readable top-level VINTF manifests.
-- The [NX809J LineageOS device tree](https://github.com/IronShing/android_device_nubia_NX809J) (branch lineage-23) does not expose an ISDB-T/tuner HAL in selected manifest, vendor_hals.mk and proprietary-files.txt listings.
-- Public [NX809J firmware inventory](https://github.com/code002-2/nubia-nx809j-firmware) lists modem, WLAN, Bluetooth, GPU and DSP firmware but no identified terrestrial broadcast frontend.
-- These do NOT prove that undocumented hardware does not exist.
+## Architecture
+```
+[Recorded IQ or synthetic generator] -> [Virtual tuner registers & digital IQ input]
+  -> [OFDM Mode-3 CP search / CFO / FFT] -> [IRQ + status readouts]
+  -> [TMCC/TS output: NOT IMPLEMENTED]
+```
 
-## Dependencies and compliance
-- Reference implementation: [gr-isdbt](https://github.com/git-artes/gr-isdbt) GNU Radio full-seg receiver (GPL-3.0). We DO NOT ship or copy its code into this project. Porting the complete receiver would require a separate architecture, licensing review and substantial development.
-- Typical ISDB-T Mode 3 nominal sampling ~8.126984 MS/s; FFT 8192.
-- No copied proprietary Qualcomm or Nubia binary blobs.
+## Standards / upstream
+- Japan ISDB-T base transmission: [ARIB STD-B31](https://www.arib.or.jp/kikaku/kikaku_hoso/desc/std-b31.html)
+- Source of algorithm research (NOT included or copied): [gr-isdbt, GPL-3.0](https://github.com/git-artes/gr-isdbt)
+- Physical radio feasibility was investigated on the user's NX809J via v0.3 diagnostics: no advertised TV tuner or usable TV tuner HAL.
 
 ## APK
-[GitHub Actions builds](https://github.com/sugano244/yt-dlp-android-custom/actions/workflows/build-apk.yml) -> `NX809J-SDR-Lab-debug-APK` -> `app-debug.apk`.
+[Build runs](https://github.com/sugano244/yt-dlp-android-custom/actions/workflows/build-apk.yml) -> latest green -> `NX809J-SDR-Lab-debug-APK` -> `app-debug.apk`.

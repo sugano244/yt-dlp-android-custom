@@ -35,6 +35,11 @@ jobs:
           mkdir -p /tmp/iqclasses
           javac -encoding UTF-8 -d /tmp/iqclasses app/src/main/java/jp/nx809j/sdrlab/IqFieldAnalyzer.java tests/IqFieldTest.java
           java -cp /tmp/iqclasses jp.nx809j.sdrlab.IqFieldTest
+      - name: Validate virtual full-seg frontend registers
+        run: |
+          mkdir -p /tmp/boardclasses
+          javac -encoding UTF-8 -d /tmp/boardclasses app/src/main/java/jp/nx809j/sdrlab/IqFieldAnalyzer.java app/src/main/java/jp/nx809j/sdrlab/VirtualFullsegBoard.java tests/BoardEmulatorTest.java
+          java -cp /tmp/boardclasses jp.nx809j.sdrlab.BoardEmulatorTest
       - name: Build Android APK
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4

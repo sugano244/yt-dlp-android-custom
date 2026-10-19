@@ -2,6 +2,6 @@ plugins { id 'com.android.application' }
 android {
   namespace 'jp.nx809j.sdrlab'
   compileSdk 35
-  defaultConfig { applicationId 'jp.nx809j.sdrlab.rfverify'; minSdk 29; targetSdk 35; versionCode 4; versionName '0.4.0' }
+  defaultConfig { applicationId 'jp.nx809j.sdrlab.rfverify'; minSdk 29; targetSdk 35; versionCode 5; versionName '0.5.0' }
   compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

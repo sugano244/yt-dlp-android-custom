@@ -16,6 +16,7 @@ import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,7 +25,9 @@ public final class MainActivity extends Activity {
     private TextView output;
     private Spinner snrSelect;
     private Button test, probe;
-    private Spinner iqFormat;
+    private Spinner iqFormat,channelSpinner;
+    private final VirtualFullsegBoard virtualBoard = new VirtualFullsegBoard();
+    private final ArrayList<Button> buttons = new ArrayList<>();
     private static final int PICK_IQ=4101;
     private String last="";
     private int dp(int d){return Math.round(d*getResources().getDisplayMetrics().density);}
@@ -33,15 +36,51 @@ public final class MainActivity extends Activity {
         t.setPadding(0,dp(8),0,dp(8));root.addView(t);return t;
     }
     private Button button(LinearLayout root,String name,View.OnClickListener f){
-        Button b=new Button(this);b.setText(name);b.setAllCaps(false);root.addView(b);b.setOnClickListener(f);return b;
+        Button b=new Button(this);b.setText(name);b.setAllCaps(false);root.addView(b);buttons.add(b);b.setOnClickListener(f);return b;
     }
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         ScrollView scroll=new ScrollView(this);
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(18),dp(32),dp(18),dp(30));
         scroll.setFillViewport(true);scroll.addView(content);setContentView(scroll);
-        label(content,"NX809J IQ Field Lab v0.4",24);
-        label(content,"記録したIQ信号のCP/FFTを解析します。実放送の受信・映像再生は未対応です。",15);
+        label(content,"NX809J Virtual Full-Seg Board v0.5",24);
+        label(content,"フルセグ受信基板の操作・レジスタ・同期判定をエミュレートします。実電波受信は不可です。",15);
+        label(content,"仮想チップ・基板操作（実RFなし）",18);
+        label(content,"UHF物理チャンネル：13～52。チャンネル番号は周波数設定の模擬のみ。",12);
+        channelSpinner=new Spinner(this);
+        String[] channels=new String[40];
+        for(int k=0;k<channels.length;k++){
+            int ch=k+13;
+            channels[k]="UHF "+ch+"ch / "+(473.143+6.0*k)+" MHz";
+        }
+        ArrayAdapter<String> channelAdapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,channels);
+        channelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        channelSpinner.setAdapter(channelAdapter);
+        channelSpinner.setSelection(14);
+        content.addView(channelSpinner);
+        button(content,"仮想チップを起動",v->launch(()->{
+            virtualBoard.write(VirtualFullsegBoard.REG_CONTROL,VirtualFullsegBoard.CTRL_POWER);
+            return virtualBoard.report();
+        }));
+        button(content,"入力なしで仮想選局",v->launch(()->{
+            virtualBoard.disconnectInput();
+            virtualBoard.write(VirtualFullsegBoard.REG_UHF_CHANNEL,13+channelSpinner.getSelectedItemPosition());
+            virtualBoard.write(VirtualFullsegBoard.REG_CONTROL,VirtualFullsegBoard.CTRL_POWER|VirtualFullsegBoard.CTRL_TUNE);
+            return virtualBoard.report();
+        }));
+        button(content,"内蔵IQで仮想選局・同期確認",v->launch(()->{
+            virtualBoard.setInput(IqFieldAnalyzer.syntheticDemo(),IqFieldAnalyzer.Format.CU8,
+                VirtualFullsegBoard.Origin.SYNTHETIC);
+            virtualBoard.write(VirtualFullsegBoard.REG_UHF_CHANNEL,13+channelSpinner.getSelectedItemPosition());
+            virtualBoard.write(VirtualFullsegBoard.REG_CONTROL,VirtualFullsegBoard.CTRL_POWER|VirtualFullsegBoard.CTRL_TUNE);
+            return virtualBoard.report();
+        }));
+        button(content,"仮想チップの全レジスタ表示",v->launch(()->virtualBoard.report()));
+        button(content,"仮想チップをリセット",v->launch(()->{
+            virtualBoard.write(VirtualFullsegBoard.REG_CONTROL,VirtualFullsegBoard.CTRL_RESET);
+            return virtualBoard.report();
+        }));
+        label(content,"仮想OFDMテスト（以前の機能）",16);
         label(content,"仮想受信SNR",16);
         snrSelect=new Spinner(this);
         ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,new String[]{"35 dB","20 dB","10 dB","5 dB","0 dB"});
@@ -56,7 +95,7 @@ public final class MainActivity extends Activity {
             new String[]{"CU8 (I/Q unsigned 8-bit)","CS16LE (signed I/Q 16-bit)","CF32LE (float32 I/Q)"});
         iqAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         iqFormat.setAdapter(iqAdapter);content.addView(iqFormat);
-        button(content,"IQファイルを選択して解析",v->{
+        button(content,"記録IQを選んで仮想基板に入力・解析",v->{
             Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
             pick.setType("*/*");
             pick.addCategory(Intent.CATEGORY_OPENABLE);
@@ -76,13 +115,13 @@ public final class MainActivity extends Activity {
             Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");
             send.putExtra(Intent.EXTRA_TEXT,last);startActivity(Intent.createChooser(send,"診断ログを共有"));
         });
-        label(content,"未実装: 実RF入力、キャリア/シンボル同期の追従、TMCC、パイロット等化、誤り訂正、MPEG-TS、映像・音声。",12);
+        label(content,"重要：エミュレートしたRF・アンテナ・A/Dは放送波を取り込めません。TMCC/TS/映像再生は未実装です。",12);
     }
     private void publish(String s){runOnUiThread(()->{
-        last=s;output.setText(s);test.setEnabled(true);probe.setEnabled(true);
+        last=s;output.setText(s);for(Button b:buttons)b.setEnabled(true);
     });}
     private void launch(java.util.concurrent.Callable<String> job){
-        test.setEnabled(false);probe.setEnabled(false);output.setText("処理中...");
+        for(Button b:buttons)b.setEnabled(false);output.setText("処理中...");
         worker.execute(()->{
             try{publish(job.call());}
             catch(Exception e){publish("診断失敗: "+e.toString());}
@@ -103,7 +142,10 @@ public final class MainActivity extends Activity {
             try(InputStream stream=getContentResolver().openInputStream(uri)){
                 bytes=IqFieldAnalyzer.readUpTo(stream);
             }
-            return "Local file URI selected via Android document picker.\\n"+
+            virtualBoard.setInput(bytes,format,VirtualFullsegBoard.Origin.RECORDED);
+            virtualBoard.write(VirtualFullsegBoard.REG_UHF_CHANNEL,13+channelSpinner.getSelectedItemPosition());
+            virtualBoard.write(VirtualFullsegBoard.REG_CONTROL,VirtualFullsegBoard.CTRL_POWER|VirtualFullsegBoard.CTRL_TUNE);
+            return virtualBoard.report()+"\\nLocal file URI selected via Android document picker.\\n"+
                 "Imported bytes: "+bytes.length+" (max "+IqFieldAnalyzer.MAX_BYTES+")\\n"+
                 IqFieldAnalyzer.analyze(bytes,format).report();
         });
