@@ -21,9 +21,10 @@ jobs:
           gradle-version: '8.11.1'
       - name: Install Android SDK 35
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          sdkmanager --version
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          echo "Using SDK manager: $SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
       - name: Validate synthetic OFDM DSP
         run: |
           mkdir -p /tmp/ofdmclasses
