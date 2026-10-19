@@ -36,15 +36,15 @@ public final class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(18),dp(32),dp(18),dp(30));
         scroll.setFillViewport(true);scroll.addView(content);setContentView(scroll);
-        label(content,"NX809J SDR Lab v0.2",24);
-        label(content,"教育用の仮想13セグOFDMテストです。実際の地デジ放送は受信できません。",15);
+        label(content,"NX809J RF Verify v0.3",24);
+        label(content,"APK単体でリアルタイム地デジを受信できる条件を読み取り専用で診断します。仮想OFDMは電波受信ではありません。",15);
         label(content,"仮想受信SNR",16);
         snrSelect=new Spinner(this);
         ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,new String[]{"35 dB","20 dB","10 dB","5 dB","0 dB"});
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         snrSelect.setAdapter(adapter);content.addView(snrSelect);
         test=button(content,"仮想OFDM復調テスト",v->runTest());
-        probe=button(content,"端末の受信機能を診断",v->runProbe());
+        probe=button(content,"APKだけで受信できるか診断",v->runProbe());
         output=label(content,"テストまたは診断を選択してください。",13);output.setTextIsSelectable(true);
         button(content,"ログをコピー",v->{
             if(last.isEmpty()){Toast.makeText(this,"ログがありません",Toast.LENGTH_SHORT).show();return;}
@@ -74,6 +74,6 @@ public final class MainActivity extends Activity {
         double snr=values[snrSelect.getSelectedItemPosition()];
         launch(()->"SNR: "+snr+" dB\n"+VirtualOfdm.run(3,snr,20261019L));
     }
-    private void runProbe(){launch(()->Diagnostics.read(this));}
+    private void runProbe(){launch(()->RfReadiness.inspect(this)+"\\n"+Diagnostics.read(this));}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
 }
