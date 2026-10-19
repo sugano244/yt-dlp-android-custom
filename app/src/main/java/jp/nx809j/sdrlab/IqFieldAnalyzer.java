@@ -100,7 +100,10 @@ public final class IqFieldAnalyzer {
             for(int pos=0;pos<scan;pos++){
                 double normalized=Math.hypot(cr,ci)/(Math.sqrt(e1*e2)+1e-20);
                 double energy=e1+e2;
-                if(energy>1e-6 && normalized>best){
+                // A true long guard also matches shorter subsets. Prefer the
+                // longest candidate when confidence is effectively tied.
+                if(energy>1e-6 && (normalized>best+0.002 ||
+                    (normalized>=best-0.002 && guard>bestGuard))){
                     best=normalized;bestPos=pos;bestGuard=guard;bestR=cr;bestI=ci;
                 }
                 if(pos+1>=scan)break;
